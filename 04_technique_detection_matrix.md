@@ -65,7 +65,7 @@
 
 ## Table 3 — Technique → Primary SPL Commands
 
-| Technique | Core Commands | Key Functions/Options |
+| Technique | Core Commands | Key Functions / Options |
 |---|---|---|
 | [Frequency Analysis](02_baseline_hunts/01_frequency_analysis.md) | `top`, `rare`, `stats count`, `eventstats` | `limit=N`, `showother=true`, `by <field>` |
 | [Cardinality Analysis](02_baseline_hunts/02_cardinality_analysis.md) | `stats dc()`, `eventstats dc()` | `dc(field)` distinct count, `by src_host` |
@@ -96,6 +96,23 @@
 
 ---
 
+## Table 5 — AD Attack Technique → Detection Use Case Mapping
+
+The course modules in `05_courses/` introduce specific AD attack techniques. This table maps each attack to the statistical technique and detection use case that best surfaces it.
+
+| AD Attack | MITRE ID | Primary Statistical Technique | Detection Use Case | Key Data Source |
+|---|---|---|---|---|
+| Kerberoasting | T1558.003 | Frequency Analysis — spike in RC4 TGS requests | Credential Attacks | WinEvent 4769 |
+| AS-REP Roasting | T1558.004 | Frequency Analysis — 4768 without pre-auth | Credential Attacks | WinEvent 4768 |
+| Pass-the-Hash | T1550.002 | Behavioral Profiling — NTLM from unusual source | Lateral Movement | WinEvent 4624 |
+| DCSync | T1003.006 | Cardinality — non-DC replication calls | Privilege Escalation | WinEvent 4662 |
+| Golden Ticket | T1558.001 | Anomaly Detection — ticket lifetime / encryption anomalies | Credential Attacks | WinEvent 4769 |
+| BloodHound Enumeration | T1087.002 | Cardinality — dc(AttributeName) LDAP burst | Lateral Movement | WinEvent 4662 |
+| Password Spray | T1110.003 | Cardinality — dc(TargetUserName) with count/user < 3 | Credential Attacks | WinEvent 4625 |
+| LSASS Dump | T1003.001 | Frequency — rare ProcessAccess on lsass.exe | Rogue Services / Processes | Sysmon EID 10 |
+
+---
+
 ## Quick-Start Paths by Threat Type
 
 Use these paths if you are new to a threat category and need to build your knowledge in the right order.
@@ -110,6 +127,8 @@ Use these paths if you are new to a threat category and need to build your knowl
 | **Kerberoasting / AS-REP** | [Frequency Analysis](02_baseline_hunts/01_frequency_analysis.md) — spike in TGS requests | [Credential Attacks](03_detection_use_cases/03_credential_attacks.md) | Module 01 (AD Traffic), Module 04 (Attacks) |
 | **Rogue processes / malware** | [Frequency Analysis](02_baseline_hunts/01_frequency_analysis.md) — rare parent→child chains | [Rogue Services / Processes](03_detection_use_cases/09_rogue_services_processes.md) | Module 04 (Attacks), Module 05 (Tooling) |
 | **Privilege escalation** | [Behavioral Profiling](02_baseline_hunts/09_behavioral_profiling.md) — DA account activity baseline | [Privilege Escalation](03_detection_use_cases/06_privilege_escalation.md) | Module 03 (Auth), Module 04 (Attacks) |
+| **DCSync / credential dumping** | [Cardinality Analysis](02_baseline_hunts/02_cardinality_analysis.md) — non-DC replication sources | [Privilege Escalation](03_detection_use_cases/06_privilege_escalation.md) | Module 01 (AD Traffic), Module 04 (Attacks) |
+| **Pass-the-Hash / token abuse** | [Behavioral Profiling](02_baseline_hunts/09_behavioral_profiling.md) — NTLM logon type baseline | [Lateral Movement](03_detection_use_cases/05_lateral_movement.md) | Module 03 (Auth Patterns), Module 04 (Attacks) |
 
 ---
 
@@ -239,6 +258,20 @@ index=corelight sourcetype=corelight_conn earliest=-15m
 | stats dc(id.resp_p) as unique_ports, dc(id.resp_h) as unique_hosts by id.orig_h
 | where unique_ports > 100 OR unique_hosts > 50
 | sort - unique_ports
+
+/* Saved detection — DCSync from non-DC account */
+index=wineventlog EventCode=4662 earliest=-1h
+| search Properties="*1131f6aa-9c07-11d1-f79f-00c04fc2dcd2*" OR Properties="*1131f6ab-9c07-11d1-f79f-00c04fc2dcd2*"
+| stats count by SubjectUserName, SubjectDomainName, ObjectType
+| where NOT match(SubjectUserName, "(?i)\$$")
+| sort - count
+
+/* Saved detection — password spray (dc of target users per source, low per-user count) */
+index=wineventlog EventCode=4625 earliest=-30m
+| stats dc(TargetUserName) as unique_users, count as total_failures by IpAddress
+| eval avg_per_user = total_failures / unique_users
+| where unique_users > 20 AND avg_per_user < 3
+| sort - unique_users
 ```
 
 ---
