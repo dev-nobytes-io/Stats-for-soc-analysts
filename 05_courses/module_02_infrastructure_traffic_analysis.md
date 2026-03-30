@@ -398,6 +398,500 @@ index=wineventlog EventCode=4624 LogonType=3 earliest=-1h
 
 ---
 
-[← Module 1: AD Traffic Fundamentals](./module_01_ad_traffic_fundamentals.md) | [Module 3: Authentication Patterns →](./module_03_authentication_patterns.md)
+## Section 8: Windows Process Inventory — Normal Behaviour and LotL Abuse
 
-*Last updated: 2026-03-29*
+Understanding what each key Windows process *should* look like is the foundation of Living off the Land (LotL) detection. Every process listed below is legitimate — attackers abuse them precisely because they are trusted and whitelisted.
+
+### Key Windows Processes
+
+| Process | Purpose | Normal Parent | Normal Children | LotL Abuse |
+|---|---|---|---|---|
+| `svchost.exe` | Hosts Windows services (one per service group) | `services.exe` | Service-specific (e.g. `dllhost.exe`, `conhost.exe`) | Attackers inject into or impersonate it; spawning `cmd.exe` or `powershell.exe` is anomalous |
+| `lsass.exe` | Handles auth, stores Kerberos/NTLM creds | `wininit.exe` | None (should have no child processes) | Credential dumping (Mimikatz); LSASS spawning anything is an immediate red flag |
+| `services.exe` | Service Control Manager | `wininit.exe` | `svchost.exe`, service binaries | Should only spawn service executables; spawning scripts is suspicious |
+| `wininit.exe` | Windows init process | `smss.exe` | `lsass.exe`, `services.exe`, `lsm.exe` | Should never be re-created after boot; duplicate instances = injection |
+| `csrss.exe` | Client/Server Runtime Subsystem | `smss.exe` | `conhost.exe` | Should have no network connections; rare children other than conhost are suspicious |
+| `spoolsv.exe` | Print Spooler | `services.exe` | Printer driver DLLs | PrintNightmare exploit target; can be abused to execute arbitrary DLLs |
+| `taskhost.exe` / `taskhostw.exe` | Hosts scheduled task DLLs | `svchost.exe` | Task-specific | Attackers create scheduled tasks that spawn from this — check the task definition |
+| `msiexec.exe` | Windows Installer | Various (install triggers) | Installer child processes | Abused to side-load DLLs or execute payloads: `msiexec /q /i http://...` |
+| `rundll32.exe` | Runs DLL exports | Various | `conhost.exe` | Extremely common LotL vector — `rundll32 comsvcs.dll MiniDump` (LSASS dump), `rundll32 javascript:...` |
+| `regsvr32.exe` | Registers COM DLLs | Various | None expected | Squiblydoo: `regsvr32 /s /n /u /i:http://... scrobj.dll` — downloads and runs scripts |
+| `mshta.exe` | Runs HTA files | Various | `cmd.exe`, `powershell.exe` | Abused to execute VBScript/JScript from URL: `mshta http://...` |
+| `wscript.exe` / `cscript.exe` | Windows Script Host | Various | Script-spawned processes | Legitimate for admin scripts; suspicious when spawned by Office processes or from `%TEMP%` |
+| `certutil.exe` | Certificate utility | Various | None | Abused to download files: `certutil -urlcache -split -f http://... out.exe` and decode base64 |
+| `bitsadmin.exe` | Background Intelligent Transfer | Various | None | `bitsadmin /transfer` used to download attacker tooling |
+| `wmic.exe` | WMI command-line | Various | WMI-spawned processes | `wmic process call create` for lateral movement; `wmic /node:X` for remote execution |
+
+### Detecting Anomalous Process Chains
+
+```spl
+/* Flag processes spawned by Office apps — common macro execution chain */
+index=sysmon EventCode=1 earliest=-24h
+| where match(lower(ParentImage), "(?i)winword|excel|outlook|powerpnt|onenote")
+| where match(lower(Image), "(?i)cmd\.exe|powershell|wscript|cscript|mshta|rundll32|regsvr32|certutil|bitsadmin")
+| table _time, host, User, ParentImage, Image, CommandLine
+| sort - _time
+```
+
+```spl
+/* svchost spawning unexpected children — injection or rogue service indicator */
+index=sysmon EventCode=1 earliest=-24h
+| where match(lower(ParentImage), "svchost\.exe")
+| where match(lower(Image), "(?i)cmd\.exe|powershell|wscript|mshta|rundll32|regsvr32|certutil")
+| table _time, host, User, ParentImage, Image, CommandLine
+```
+
+```spl
+/* lsass.exe spawning any child process — immediate red flag */
+index=sysmon EventCode=1 earliest=-24h
+| where match(lower(ParentImage), "lsass\.exe")
+| table _time, host, User, ParentImage, Image, CommandLine
+```
+
+```spl
+/* LotL: certutil or bitsadmin downloading from the internet */
+index=sysmon EventCode=1 earliest=-24h
+| where match(lower(Image), "(?i)certutil\.exe|bitsadmin\.exe")
+| where match(CommandLine, "(?i)http://|https://|urlcache|transfer|download")
+| table _time, host, User, Image, CommandLine
+```
+
+```spl
+/* LotL: rundll32 executing from non-standard path or with suspicious arguments */
+index=sysmon EventCode=1 earliest=-24h
+| where match(lower(Image), "rundll32\.exe")
+| where match(CommandLine, "(?i)javascript:|http://|comsvcs|pcwutl|advpack|ieadvpack")
+    OR match(CommandLine, "(?i)%temp%|%appdata%|\\\\users\\\\")
+| table _time, host, User, Image, CommandLine
+```
+
+---
+
+## Section 9: WSUS and SCCM Distribution Points
+
+### WSUS — Windows Server Update Services
+
+WSUS is the patch management service used in most enterprise Windows environments. Understanding its traffic is essential because:
+- Legitimate WSUS creates high-volume, predictable traffic that can mask exfiltration
+- Attackers can exploit WSUS to deliver malicious updates (WSUSpendu, PyWSUS)
+- Rogue WSUS servers can be set up via GPO poisoning or local registry modification
+
+**Normal WSUS Traffic Pattern:**
+
+| Direction | Ports | Frequency | Description |
+|---|---|---|---|
+| Client → WSUS server | TCP 8530 (HTTP) or 8531 (HTTPS) | Every 22 hours (default) + on demand | Client checks for updates |
+| WSUS → Microsoft Update | TCP 443 | Nightly sync | Server pulls update metadata |
+| Client → DP/WSUS | TCP 8530/8531 | During update window | Actual patch content download |
+
+```spl
+/* Baseline: who connects to port 8530/8531 and from where? */
+index=corelight sourcetype=corelight_conn earliest=-7d
+| where id.resp_p IN (8530, 8531)
+| stats count AS connections, dc(id.orig_h) AS unique_clients
+    BY id.resp_h, id.resp_p
+| sort - connections
+```
+
+```spl
+/* Anomaly: clients connecting to a WSUS server that is NOT in your known list */
+index=corelight sourcetype=corelight_conn earliest=-1h
+| where id.resp_p IN (8530, 8531)
+| lookup wsus_server_list ip as id.resp_h OUTPUT is_known_wsus
+| where isnull(is_known_wsus)
+| stats count, dc(id.orig_h) AS unique_clients, values(id.orig_h) AS clients
+    BY id.resp_h
+| sort - count
+```
+
+```spl
+/* WSUS abuse: suspicious process spawned by Windows Update (TrustedInstaller or wuauclt) */
+index=sysmon EventCode=1 earliest=-24h
+| where match(lower(ParentImage), "(?i)trustedinstaller|wuauclt|usocoreworker|musnotification")
+| where NOT match(lower(Image), "(?i)tiworker|wusa|wuauclt|msiexec|setup|install")
+| table _time, host, User, ParentImage, Image, CommandLine
+```
+
+### SCCM Distribution Points
+
+Distribution Points (DPs) serve application and patch content to SCCM clients. Key characteristics:
+- Clients connect via HTTP (80) or HTTPS (443) to the DP's IIS site — **same ports as web traffic**
+- Content is served from `\SMS_DP$` share path
+- Clients authenticate with their machine certificate or anonymous (less secure)
+- DPs only serve content to domain-joined clients — connections from non-domain IPs are suspicious
+
+```spl
+/* Baseline: content downloads from DPs (HTTP GET from known DP IPs) */
+index=corelight sourcetype=corelight_http earliest=-7d
+| lookup sccm_dp_list ip as id.resp_h OUTPUT is_dp
+| where is_dp = "true"
+| where method="GET"
+| where match(uri, "(?i)SMS_DP|Content|CCM_POST")
+| stats count AS downloads, sum(response_body_len) AS bytes_delivered,
+        dc(id.orig_h) AS unique_clients
+    BY id.resp_h
+| sort - bytes_delivered
+```
+
+```spl
+/* Anomaly: non-domain hosts downloading from DPs, or DPs serving non-standard content */
+index=corelight sourcetype=corelight_http earliest=-1h
+| lookup sccm_dp_list ip as id.resp_h OUTPUT is_dp
+| where is_dp = "true"
+| where NOT match(uri, "(?i)SMS_DP|Content|CCM_POST|ccm_system|ccm_client")
+| table _time, id.orig_h, id.resp_h, uri, method, status_code, response_body_len
+```
+
+---
+
+## Section 10: Malicious IT Admin and Shadow IT Detection
+
+### The Insider Admin Problem
+
+Malicious or negligent IT administrators represent a uniquely difficult detection challenge because:
+- All their actions use legitimate tools and credentials
+- They have the access rights to perform the actions they take
+- They can disable the very logging mechanisms used to detect them
+- Change management records may not cover all their activity
+
+The key insight is: **legitimate admin actions follow change management patterns — undocumented admin actions are anomalies regardless of how authorised the account is.**
+
+### Audit Policy Modification (Disabling Logging)
+
+```spl
+/* EID 4719: System audit policy changed — one of the most critical admin abuse signals */
+index=wineventlog EventCode=4719 earliest=-7d
+| where NOT match(SubjectUserName, "\\$$")
+| stats count, values(AuditPolicyChanges) AS policy_changes,
+        values(ComputerName) AS affected_hosts
+    BY SubjectUserName
+| sort - count
+```
+
+```spl
+/* Sysmon: auditpol.exe used to modify audit settings */
+index=sysmon EventCode=1 earliest=-24h
+| where match(lower(Image), "auditpol\.exe")
+| where match(CommandLine, "(?i)/set|/clear|/disable|/remove")
+| table _time, host, User, Image, CommandLine
+```
+
+### Task Sequences and Deployment Scripts Suppressing Logs
+
+SCCM task sequences and deployment scripts can suppress Windows Event Log writes by:
+- Disabling the Windows Event Log service (`net stop eventlog`)
+- Modifying audit policy via `auditpol.exe`
+- Clearing event logs (`wevtutil cl Security`)
+- Setting log maximum size to minimum to trigger rapid overwrite
+
+```spl
+/* Detect log clearing or service stop targeting Windows Event Log */
+index=wineventlog EventCode=1102 earliest=-30d
+| stats count AS log_clears, values(SubjectUserName) AS clearers
+    BY ComputerName
+| sort - log_clears
+```
+
+```spl
+/* Sysmon: commands that stop/disable the event log service */
+index=sysmon EventCode=1 earliest=-24h
+| where match(CommandLine, "(?i)(net|sc)\s+(stop|config|delete)\s+(eventlog|wecsvc|winrm)")
+    OR match(CommandLine, "(?i)wevtutil\s+(cl|clear-log)")
+    OR match(CommandLine, "(?i)set-service.*eventlog.*disabled")
+| table _time, host, User, Image, CommandLine
+```
+
+```spl
+/* Task sequences: ccmexec or smsswd running auditpol or wevtutil — suspicious in production */
+index=sysmon EventCode=1 earliest=-30d
+| where match(lower(ParentImage), "(?i)ccmexec|smsswd|tasksequence|smswd")
+| where match(lower(Image), "(?i)auditpol|wevtutil|net\.exe|sc\.exe")
+| table _time, host, User, ParentImage, Image, CommandLine
+```
+
+### Detecting Undocumented Admin Activity
+
+Cross-reference admin actions against change management windows. If you maintain a lookup of approved change windows, flag admin-class operations performed outside those windows:
+
+```spl
+/* Admin actions outside of approved change windows */
+index=wineventlog (EventCode=7045 OR EventCode=4728 OR EventCode=4720 OR EventCode=5136) earliest=-7d
+| eval hour_of_day = tonumber(strftime(_time, "%H"))
+| eval day_of_week = strftime(_time, "%A")
+| eval in_change_window = if(
+    (day_of_week IN ("Tuesday","Wednesday","Thursday") AND hour_of_day >= 22 AND hour_of_day <= 23)
+    OR (day_of_week="Saturday" AND hour_of_day >= 6 AND hour_of_day <= 12),
+    "YES", "NO"
+  )
+| where in_change_window="NO"
+| eval event_desc = case(
+    EventCode=7045, "Service installed: " + ServiceName,
+    EventCode=4728, "User added to group: " + GroupName,
+    EventCode=4720, "Account created: " + TargetUserName,
+    EventCode=5136, "AD attribute changed: " + ObjectDN,
+    true(), "EventCode " + EventCode
+  )
+| table _time, SubjectUserName, event_desc, ComputerName, in_change_window
+| sort - _time
+```
+
+---
+
+## Section 11: Splunk Lookup Build-Out
+
+Lookups are the foundation of contextual detection in this repository. Without them, SPL queries cannot distinguish "workstation" from "server" or "known management host" from "rogue". This section provides the commands to populate them.
+
+### Required Lookups
+
+| Lookup File | Purpose | Key Fields |
+|---|---|---|
+| `asset_classification.csv` | Maps IPs to asset types | `ip`, `asset_type`, `hostname`, `is_admin_host` |
+| `dc_list.csv` | All domain controller IPs/names | `ip`, `computername`, `is_dc` |
+| `management_hosts.csv` | Known management/monitoring IPs | `ip`, `hostname`, `is_management` |
+| `sccm_mp_list.csv` | SCCM Management Point IPs | `ip`, `hostname`, `is_known_mp` |
+| `sccm_dp_list.csv` | SCCM Distribution Point IPs | `ip`, `hostname`, `is_dp` |
+| `wsus_server_list.csv` | WSUS server IPs | `ip`, `hostname`, `is_known_wsus` |
+| `unconstrained_delegation_hosts.csv` | Hosts with unconstrained delegation | `hostname`, `has_unconstrained` |
+
+### Extracting Asset Data via PowerShell (AD Module)
+
+```powershell
+# Requires: Active Directory PowerShell module (RSAT)
+# Run on a domain-joined host with read access to AD
+
+# 1. Export all Domain Controllers
+Get-ADDomainController -Filter * |
+  Select-Object @{n='ip';e={$_.IPv4Address}},
+                @{n='computername';e={$_.HostName}},
+                @{n='is_dc';e={'true'}} |
+  Export-Csv -Path .\dc_list.csv -NoTypeInformation
+
+# 2. Export all computers with asset classification
+Get-ADComputer -Filter * -Properties IPv4Address, OperatingSystem, Description |
+  Select-Object @{n='ip';e={$_.IPv4Address}},
+                @{n='hostname';e={$_.DNSHostName}},
+                @{n='asset_type';e={
+                    if ($_.OperatingSystem -match 'Server') { 'server' }
+                    elseif ($_.OperatingSystem -match 'Windows 10|Windows 11') { 'workstation' }
+                    else { 'unknown' }
+                }},
+                @{n='is_admin_host';e={
+                    if ($_.Description -match 'jump|admin|mgmt') { 'true' } else { 'false' }
+                }} |
+  Export-Csv -Path .\asset_classification.csv -NoTypeInformation
+
+# 3. Export unconstrained delegation computers
+Get-ADComputer -Filter {TrustedForDelegation -eq $true} -Properties TrustedForDelegation |
+  Select-Object @{n='hostname';e={$_.DNSHostName}},
+                @{n='has_unconstrained';e={'true'}} |
+  Export-Csv -Path .\unconstrained_delegation_hosts.csv -NoTypeInformation
+
+# 4. Export service accounts with SPNs (Kerberoastable targets)
+Get-ADUser -Filter {ServicePrincipalName -ne "$null" -and Enabled -eq $true} `
+  -Properties ServicePrincipalName, PasswordLastSet, MemberOf |
+  Select-Object SamAccountName, PasswordLastSet,
+                @{n='spns';e={$_.ServicePrincipalName -join '|'}} |
+  Export-Csv -Path .\kerberoastable_accounts.csv -NoTypeInformation
+
+# 5. Export accounts without Kerberos pre-authentication (AS-REP roastable)
+Get-ADUser -Filter {DoesNotRequirePreAuth -eq $true -and Enabled -eq $true} |
+  Select-Object SamAccountName, DistinguishedName |
+  Export-Csv -Path .\asrep_roastable.csv -NoTypeInformation
+```
+
+### Extracting SCCM Infrastructure via PowerShell
+
+```powershell
+# Requires: ConfigurationManager PowerShell module and SCCM Admin rights
+
+# Import ConfigMgr module (path varies by CM version)
+Import-Module "$env:SMS_ADMIN_UI_PATH\..\ConfigurationManager.psd1"
+$SiteCode = (Get-PSDrive -PSProvider CMSite).Name
+Set-Location "$SiteCode`:"
+
+# Export Management Points
+Get-CMManagementPoint |
+  Select-Object @{n='hostname';e={$_.NetworkOSPath -replace '\\\\',''}},
+                @{n='is_known_mp';e={'true'}} |
+  Export-Csv -Path .\sccm_mp_list.csv -NoTypeInformation
+
+# Export Distribution Points
+Get-CMDistributionPoint |
+  Select-Object @{n='hostname';e={$_.NetworkOSPath -replace '\\\\',''}},
+                @{n='is_dp';e={'true'}} |
+  Export-Csv -Path .\sccm_dp_list.csv -NoTypeInformation
+```
+
+### Extracting WSUS Servers via Registry/DNS
+
+```powershell
+# Query AD for WSUS GPO settings (WUServer value)
+Get-GPRegistryValue -All -Key "HKLM\Software\Policies\Microsoft\Windows\WindowsUpdate" `
+  -ValueName WUServer -ErrorAction SilentlyContinue |
+  Select-Object @{n='wsus_url';e={$_.Value}} |
+  ForEach-Object {
+    [System.Net.Dns]::GetHostAddresses(([uri]$_.wsus_url).Host) |
+      ForEach-Object { [PSCustomObject]@{ip=$_.IPAddressToString; is_known_wsus='true'} }
+  } | Export-Csv -Path .\wsus_server_list.csv -NoTypeInformation
+```
+
+### Loading Lookups into Splunk
+
+After generating the CSVs, upload them via the Splunk UI (`Settings → Lookups → Lookup table files`) or via the CLI:
+
+```bash
+# Copy CSVs to Splunk lookup directory
+SPLUNK_HOME=/opt/splunk
+APP=search   # or your custom app name
+
+for f in asset_classification dc_list management_hosts sccm_mp_list \
+         sccm_dp_list wsus_server_list unconstrained_delegation_hosts; do
+  cp ./${f}.csv ${SPLUNK_HOME}/etc/apps/${APP}/lookups/
+done
+
+# Restart is not required for lookup files — they are read on demand
+```
+
+Define lookup definitions in `transforms.conf`:
+
+```ini
+# $SPLUNK_HOME/etc/apps/<app>/default/transforms.conf
+
+[asset_classification]
+filename = asset_classification.csv
+case_sensitive_match = false
+
+[dc_list]
+filename = dc_list.csv
+case_sensitive_match = false
+
+[management_hosts]
+filename = management_hosts.csv
+case_sensitive_match = false
+
+[sccm_mp_list]
+filename = sccm_mp_list.csv
+case_sensitive_match = false
+
+[sccm_dp_list]
+filename = sccm_dp_list.csv
+case_sensitive_match = false
+
+[wsus_server_list]
+filename = wsus_server_list.csv
+case_sensitive_match = false
+
+[unconstrained_delegation_hosts]
+filename = unconstrained_delegation_hosts.csv
+case_sensitive_match = false
+```
+
+---
+
+## Section 12: Splunk Data Model Configuration
+
+### Why Data Models Matter
+
+The Common Information Model (CIM) data models normalise field names across all data sources so that:
+- Correlation searches (ES) work without source-specific SPL
+- `tstats` can run at acceleration speed across terabytes of data
+- Dashboards built against CIM work regardless of the underlying sourcetype
+
+### Relevant CIM Data Models
+
+| Data Model | Use Case | Key Sources |
+|---|---|---|
+| `Network_Traffic` | All Corelight conn.log detections | `corelight_conn` |
+| `Authentication` | All WinEvent 4624/4625/4768/4769 | `wineventlog` |
+| `Endpoint` | Sysmon EID 1/3/7/11, WinEvent 4688/7045 | `sysmon`, `wineventlog` |
+| `Intrusion_Detection` | IDS/signature alerts | — |
+| `DNS` | Corelight dns.log | `corelight_dns` |
+
+### CIM Field Mappings: Corelight conn.log → Network_Traffic
+
+Add to your Corelight TA's `props.conf` or in `$SPLUNK_HOME/etc/apps/<app>/default/props.conf`:
+
+```ini
+[corelight_conn]
+EVAL-src = id.orig_h
+EVAL-src_port = id.orig_p
+EVAL-dest = id.resp_h
+EVAL-dest_port = id.resp_p
+EVAL-bytes_out = orig_bytes
+EVAL-bytes_in = resp_bytes
+EVAL-duration = duration
+EVAL-transport = proto
+EVAL-action = if(conn_state IN ("SF","S1","S2","S3"), "allowed", "blocked")
+```
+
+### CIM Field Mappings: WinEvent Authentication
+
+```ini
+[WinEventLog:Security]
+EVAL-user = coalesce(SubjectUserName, TargetUserName)
+EVAL-src = coalesce(IpAddress, WorkstationName)
+EVAL-dest = ComputerName
+EVAL-action = if(EventCode IN ("4624","4768","4769","4770"), "success", "failure")
+EVAL-app = "Windows"
+EVAL-authentication_method = AuthenticationPackageName
+EVAL-logon_type = LogonType
+```
+
+### CIM Field Mappings: Sysmon EID 1 → Endpoint Processes
+
+```ini
+[XmlWinEventLog:Microsoft-Windows-Sysmon/Operational]
+EVAL-process = Image
+EVAL-process_id = ProcessId
+EVAL-parent_process = ParentImage
+EVAL-parent_process_id = ParentProcessId
+EVAL-process_name = replace(Image, ".*\\\\", "")
+EVAL-user = User
+EVAL-dest = Computer
+EVAL-cmdline = CommandLine
+```
+
+### Enabling Data Model Acceleration
+
+In Splunk Web: `Settings → Data Models → [model name] → Edit Acceleration`
+
+Or via `datamodels.conf`:
+
+```ini
+# $SPLUNK_HOME/etc/apps/<app>/default/datamodels.conf
+
+[Network_Traffic]
+acceleration = true
+acceleration.earliest_time = -90d
+acceleration.cron_schedule = */5 * * * *
+
+[Authentication]
+acceleration = true
+acceleration.earliest_time = -90d
+acceleration.cron_schedule = */5 * * * *
+
+[Endpoint]
+acceleration = true
+acceleration.earliest_time = -90d
+acceleration.cron_schedule = */5 * * * *
+```
+
+### Using `tstats` with Accelerated Data Models
+
+Once acceleration is active, replace `stats` with `tstats` for orders-of-magnitude speed improvements:
+
+```spl
+/* tstats equivalent of: stats count BY src, dest, dest_port FROM conn.log */
+| tstats summariesonly=true count AS conn_count,
+         sum(All_Traffic.bytes_out) AS bytes_out
+    FROM datamodel=Network_Traffic.All_Traffic
+    WHERE All_Traffic.dest_port=445
+    BY All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port
+    span=1h
+| rename All_Traffic.* AS *
+| sort - conn_count
+```
+
+---
+
+[← Module 1: AD Traffic Fundamentals](./module_01_ad_traffic_fundamentals.md) | [Module 3: Authentication Patterns →](./module_03_authentication_patterns.md)
