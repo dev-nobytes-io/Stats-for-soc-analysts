@@ -191,3 +191,24 @@ flowchart TD
 ---
 
 *All SPL in this repository runs on the **Splunk Search Head** using built-in commands only. No ML Toolkit or external add-ons required.*
+
+---
+
+## Outstanding Work / TODO
+
+The following items are planned but not yet written. Contributions welcome.
+
+### Module 2 — Infrastructure Traffic Analysis (expansion needed)
+
+`05_courses/module_02_infrastructure_traffic_analysis.md` covers SMB, WMI, RPC, SCCM, and WinRM at a foundational level. The following sections need to be added:
+
+- [ ] **Windows process inventory** — for each key Windows process (`svchost.exe`, `lsass.exe`, `services.exe`, `wininit.exe`, `csrss.exe`, `spoolsv.exe`, `taskhost.exe`, etc.): what it does, what legitimately spawns it, what child processes it normally creates, and how attackers abuse it for Living off the Land (LotL)
+- [ ] **WSUS / Windows Server Update Services** — normal client→WSUS traffic patterns (ports 8530/8531), how to identify rogue WSUS servers or WSUS-based attack techniques (WSUSpendu, PyWSUS), SPL to baseline update traffic
+- [ ] **SCCM Distribution Points** — normal DP traffic (HTTP/HTTPS content download), how attackers abuse SCCM NAA credentials or rogue DPs, SPL to distinguish legitimate vs rogue distribution point activity
+- [ ] **Malicious IT admin / shadow IT detection** — detecting administrators disabling logging (audit policy changes via EID 4719), modifying task sequences to suppress events, using legitimate tooling to cover tracks; the challenge of distinguishing authorised admin activity from insider threat; SPL patterns for auditing admin-class actions
+- [ ] **Splunk lookup build-out** — step-by-step PowerShell and bash commands to extract the AD data needed to populate lookups (`asset_classification`, `dc_list`, `management_hosts`, `sccm_mp_list`, etc.) used throughout the detection SPL in this repository
+- [ ] **Splunk data model configuration** — how to map the Corelight and Windows Event Log sources to the CIM data models (Network Traffic, Authentication, Endpoint) so that ES correlation searches work out of the box
+
+### Mermaid Diagram Audit
+
+- [ ] Full rendering test of all mermaid diagrams across all 25 files — confirm no syntax errors remain after the automated fixes applied during initial generation
