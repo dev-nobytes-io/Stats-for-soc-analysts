@@ -83,8 +83,8 @@ flowchart TD
     B --> C[Group by id.orig_h\nper 1-hour window]
     C --> D[Compute dc of id.resp_p\nper source per hour]
     C --> E[Compute dc of id.resp_h\nper source per hour]
-    D --> F{dc of id.resp_p\n> 100?}
-    E --> G{dc of id.resp_h\n> 50?}
+    D --> F{"dc of id.resp_p\n> 100?"}
+    E --> G{"dc of id.resp_h\n> 50?"}
     F -- Yes --> H[VERTICAL SCAN\nPort sweep on target host]
     F -- No --> I[Below threshold\nDiscard or monitor]
     G -- Yes --> J[HORIZONTAL SCAN\nHost sweep for live hosts]
