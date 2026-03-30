@@ -80,7 +80,7 @@ sequenceDiagram
 flowchart TD
     A[Corelight conn.log\nall outbound connections] --> B[Aggregate orig_bytes\nper src host per day]
     B --> C[Build 30-day baseline\navg and stdev per host]
-    C --> D{Z-score of today's\norig_bytes > 3?}
+    C --> D{"Z-score of today's\norig_bytes > 3?"}
     D -- No --> E[Within normal range\nContinue monitoring]
     D -- Yes --> F[VOLUME SPIKE ALERT\nHost flagged]
     F --> G[Pivot to files.log\nWhat MIME types were sent?]
@@ -92,7 +92,7 @@ flowchart TD
     K -- Yes --> L[Pivot to ssl.log\nWhat domain/JA3?]
     L --> M[CONFIRMED EXFILTRATION\nEscalate for IR]
     E --> N[Slow-and-low path:\nMoving average trend\norig_bytes this hour vs 7d avg]
-    N --> O{Current hour > 200%\nof 7-day moving avg?}
+    N --> O{"Current hour > 200%\nof 7-day moving avg?"}
     O -- No --> E
     O -- Yes --> F
 ```

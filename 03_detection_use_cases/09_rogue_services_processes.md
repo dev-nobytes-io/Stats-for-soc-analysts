@@ -85,7 +85,7 @@ flowchart TD
 
     E[Sysmon EID 1\nAll process creation events] --> F{Image path starts with\nC:\\Users\\ or C:\\Temp\\?}
     F -- Yes --> G[FLAG: Suspicious process path]
-    F -- No --> H{Process image\nrare across fleet?\nCount of hosts < 3?}
+    F -- No --> H{"Process image\nrare across fleet?\nCount of hosts < 3?"}
     H -- No --> I[Common process\nNo flag]
     H -- Yes --> J[FLAG: Rare fleet image]
 
@@ -342,7 +342,7 @@ flowchart LR
     subgraph INSTALL["Installation Evidence"]
         A[WinEvent 7045\nService installed\nServiceFileName path]
         B[WinEvent 4698\nScheduled task created\nTask XML payload]
-        C[Sysmon EID 13\nRegistry run key set\nHKLM\\Software\\Microsoft\\Windows\\Run]
+        C["Sysmon EID 13\nRegistry run key set\nHKLM\\Software\\Microsoft\\Windows\\Run"]
     end
     subgraph EXEC["Execution Evidence"]
         D[Sysmon EID 1\nProcess created\nImage path + CommandLine]

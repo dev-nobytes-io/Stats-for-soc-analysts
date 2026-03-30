@@ -87,9 +87,9 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A[WinEvent 4625\nFailed Logon] --> B[Aggregate by source IP\nand TargetUserName]
-    B --> C{count per\nsingle user > 10?}
+    B --> C{"count per\nsingle user > 10?"}
     C -- Yes --> D[BRUTE FORCE\nSingle account targeted]
-    C -- No --> E{dc TargetUserName\nper source IP > 20?}
+    C -- No --> E{"dc TargetUserName\nper source IP > 20?"}
     E -- Yes --> F[PASSWORD SPRAY\nMany accounts targeted]
     E -- No --> G[Below thresholds\nMonitor]
     F --> H[Pivot: EID 4624\nDid any spray attempt succeed?]
@@ -98,7 +98,7 @@ flowchart TD
     I -- Yes --> J[CREDENTIAL COMPROMISE\nEscalate immediately]
     I -- No --> K[Ongoing attack\nBlock source IP]
     A --> L[WinEvent 4769\nKerberos TGS Request]
-    L --> M{TicketEncType=0x17\nAND dc ServiceName > 10?}
+    L --> M{"TicketEncType=0x17\nAND dc ServiceName > 10?"}
     M -- Yes --> N[KERBEROASTING\nService accounts targeted]
     M -- No --> G
 ```
@@ -132,7 +132,7 @@ flowchart TD
 
 ```spl
 /* Baseline: establish normal volume of EID 4625 per day for forecasting */
-index=winevent EventCode=4625
+index=wineventlog EventCode=4625
 | bin _time span=1d AS day
 | stats count AS daily_failures BY day
 | sort day
@@ -148,7 +148,7 @@ Get the raw picture of who is failing to authenticate and from where. This singl
 
 ```spl
 /* Explore: failed login frequency by TargetUserName and IpAddress */
-index=winevent EventCode=4625
+index=wineventlog EventCode=4625
 | stats count AS failure_count,
         dc(TargetUserName) AS unique_users,
         dc(IpAddress) AS unique_sources,
@@ -168,7 +168,7 @@ The spray signal lives here: find source IPs with high `dc(TargetUserName)` but 
 
 ```spl
 /* Explore: password spray cardinality - unique users per source IP */
-index=winevent EventCode=4625
+index=wineventlog EventCode=4625
 | stats count AS total_failures,
         dc(TargetUserName) AS unique_users_targeted,
         values(TargetUserName) AS sample_users
@@ -185,7 +185,7 @@ Spray attacks often run in bursts during off-hours to avoid human observation. A
 
 ```spl
 /* Explore: time distribution of authentication failures */
-index=winevent EventCode=4625
+index=wineventlog EventCode=4625
 | timechart span=5m count AS failures
 ```
 
@@ -199,7 +199,7 @@ Flag source IPs generating more than a threshold of failures against a single ac
 
 ```spl
 /* CREDENTIAL ATTACK DETECTION: brute force - high failures per account */
-index=winevent EventCode=4625
+index=wineventlog EventCode=4625
 | bin _time span=1h AS hour
 | stats count AS failure_count,
         dc(IpAddress) AS unique_sources,
@@ -217,7 +217,7 @@ Flag source IPs that attempt authentication against many distinct accounts with 
 
 ```spl
 /* CREDENTIAL ATTACK DETECTION: password spray - cardinality of targeted users */
-index=winevent EventCode=4625
+index=wineventlog EventCode=4625
 | bin _time span=1h AS hour
 | stats count AS total_failures,
         dc(TargetUserName) AS unique_targets,
@@ -240,7 +240,7 @@ Use time-series forecasting to detect spray campaigns that might stay just below
 
 ```spl
 /* CREDENTIAL ATTACK DETECTION: forecast-based volume anomaly on EID 4625 */
-index=winevent EventCode=4625 earliest=-30d
+index=wineventlog EventCode=4625 earliest=-30d
 | timechart span=1h count AS failure_count
 | predict failure_count algorithm=LLP5 future_timespan=0 holdback=24 upper95=upper_bound lower95=lower_bound
 | where _time >= relative_time(now(), "-24h")
@@ -256,7 +256,7 @@ Flag accounts requesting many Kerberos service tickets (EID 4769) using the weak
 
 ```spl
 /* KERBEROASTING DETECTION: RC4 TGS requests for multiple service accounts */
-index=winevent EventCode=4769
+index=wineventlog EventCode=4769
 | where TicketEncryptionType="0x17"
 | where NOT ServiceName LIKE "%$"
 | bin _time span=30m AS window
@@ -281,7 +281,7 @@ After identifying a spray source, immediately check whether any attempt resulted
 
 ```spl
 /* PIVOT: check for successful logon following spray - same source IP */
-index=winevent (EventCode=4625 OR EventCode=4624)
+index=wineventlog (EventCode=4625 OR EventCode=4624)
 | where IpAddress="<SPRAY_SOURCE_IP>"
 | eval event_type = case(EventCode=4625, "FAILURE", EventCode=4624, "SUCCESS", true(), "OTHER")
 | stats count BY event_type, TargetUserName
@@ -335,7 +335,7 @@ flowchart LR
 
 ```spl
 /* VISUALIZATION: authentication failure volume by type over time */
-index=winevent (EventCode=4625 OR EventCode=4771 OR EventCode=4769)
+index=wineventlog (EventCode=4625 OR EventCode=4771 OR EventCode=4769)
 | eval attack_indicator = case(
     EventCode=4625, "Failed_Logon",
     EventCode=4771, "Kerberos_PreAuth_Fail",

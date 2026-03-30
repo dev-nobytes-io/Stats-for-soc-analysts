@@ -88,11 +88,11 @@ sequenceDiagram
 flowchart TD
     A[Corelight dns.log\nall DNS queries] --> B[Filter: external queries\nnot to internal resolvers]
     B --> C[Calculate entropy\nof query/subdomain]
-    C --> D{Entropy > 3.5?}
+    C --> D{"Entropy > 3.5?"}
     D -- No --> E[Low entropy\nLikely legitimate]
     D -- Yes --> F[High entropy query\nflag for review]
     B --> G[Calculate NXDOMAIN ratio\nper parent domain]
-    G --> H{NXDOMAIN ratio\n> 70%?}
+    G --> H{"NXDOMAIN ratio\n> 70%?"}
     H -- No --> E
     H -- Yes --> I[High NXDOMAIN\nDGA candidate]
     F --> J{Also TXT/NULL\nquery type?}

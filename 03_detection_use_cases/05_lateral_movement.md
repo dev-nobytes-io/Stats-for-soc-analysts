@@ -98,7 +98,7 @@ flowchart TD
     L --> H
     H --> M[Pivot: EID 7045\nWas a service installed?]
     I --> N[Z-score on daily\nlogon count per user]
-    N --> O{Z-score > 3\nvs 30-day baseline?}
+    N --> O{"Z-score > 3\nvs 30-day baseline?"}
     O -- Yes --> F
     O -- No --> E
 ```
@@ -133,7 +133,7 @@ flowchart TD
 
 ```spl
 /* Baseline: per-account normal destination count over 30 days */
-index=winevent EventCode=4624 earliest=-30d
+index=wineventlog EventCode=4624 earliest=-30d
 | where LogonType IN ("3", "10")
 | where SubjectUserName != "-" AND SubjectUserName != ""
 | bin _time span=1d AS day
@@ -155,7 +155,7 @@ Understand the breakdown of logon types in the environment. LogonType 3 (network
 
 ```spl
 /* Explore: logon type distribution across environment */
-index=winevent EventCode=4624
+index=wineventlog EventCode=4624
 | stats count BY LogonType
 | sort - count
 ```
@@ -182,7 +182,7 @@ Find accounts connecting to an unusually high number of distinct workstations to
 
 ```spl
 /* Explore: unique destination hosts per account - cardinality view */
-index=winevent EventCode=4624
+index=wineventlog EventCode=4624
 | where LogonType IN ("3", "10")
 | where SubjectUserName != "-"
 | stats dc(WorkstationName) AS unique_destinations,
@@ -204,7 +204,7 @@ Flag accounts where today's `dc(WorkstationName)` exceeds their own 30-day basel
 
 ```spl
 /* LATERAL MOVEMENT DETECTION: cardinality spike on destination hosts per account */
-index=winevent EventCode=4624 earliest=-30d
+index=wineventlog EventCode=4624 earliest=-30d
 | where LogonType IN ("3", "10")
 | where SubjectUserName != "-" AND SubjectUserName != "" AND SubjectUserName != "ANONYMOUS LOGON"
 | bin _time span=1d AS day
@@ -255,7 +255,7 @@ Flag RDP logons (LogonType 10) originating from a source that has not previously
 
 ```spl
 /* LATERAL MOVEMENT DETECTION: RDP logon from new source host */
-index=winevent EventCode=4624 earliest=-30d
+index=wineventlog EventCode=4624 earliest=-30d
 | where LogonType="10"
 | bin _time span=1d AS day
 | stats earliest(day) AS first_seen_day,
@@ -273,7 +273,7 @@ Detect a surge in lateral authentication volume (any combination of LogonType 3/
 
 ```spl
 /* LATERAL MOVEMENT DETECTION: z-score on daily lateral logon count */
-index=winevent EventCode=4624 earliest=-30d
+index=wineventlog EventCode=4624 earliest=-30d
 | where LogonType IN ("3", "10")
 | where SubjectUserName != "-"
 | bin _time span=1d AS day
@@ -294,7 +294,7 @@ PsExec installs a temporary service on the remote host. Detect service installat
 
 ```spl
 /* PIVOT: EID 7045 - new service install following lateral logon */
-index=winevent EventCode=7045
+index=wineventlog EventCode=7045
 | where NOT ServiceName IN ("WinDefend", "wuauserv", "Spooler")
 | stats count AS install_count,
         values(ServiceName) AS service_names,
@@ -357,7 +357,7 @@ flowchart LR
 
 ```spl
 /* VISUALIZATION: logon activity heat map - account to destination host */
-index=winevent EventCode=4624
+index=wineventlog EventCode=4624
 | where LogonType IN ("3", "10")
 | where SubjectUserName="<SUSPECT_ACCOUNT>"
 | timechart span=1h count AS logon_count BY WorkstationName useother=false limit=20
@@ -369,7 +369,7 @@ Detect a gradual increase in lateral connection rate (slow spread) by tracking h
 
 ```spl
 /* VISUALIZATION: rolling average of lateral logons to detect slow spread */
-index=winevent EventCode=4624 earliest=-8d
+index=wineventlog EventCode=4624 earliest=-8d
 | where LogonType IN ("3", "10")
 | where SubjectUserName="<SUSPECT_ACCOUNT>"
 | bin _time span=1h AS hour

@@ -175,7 +175,7 @@ Stats-for-soc-analysts/
 
 ```mermaid
 flowchart TD
-    A[Start Here:\nREADME.md] --> B{What are you\nlooking for?}
+    A["Start Here:\nREADME.md"] --> B{What are you\nlooking for?}
     B -->|Learn the framework| C[00_peak_framework_overview.md]
     B -->|Understand Splunk functions| D[01_splunk_search_head_functions.md]
     B -->|Learn a stat technique| E[02_baseline_hunts/]

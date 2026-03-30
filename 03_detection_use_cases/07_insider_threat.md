@@ -70,17 +70,17 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[WinEvent 4624\nAll logon events] --> B[Group by SubjectUserName\nand date_hour]
-    B --> C{Login hour vs user's\nown typical hours\n> 2 stdev from mean?}
+    B --> C{"Login hour vs user's\nown typical hours\n> 2 stdev from mean?"}
     C -- No --> D[Normal hour\nNo flag]
     C -- Yes --> E[FLAG: Off-hours login]
 
     F[WinEvent 4663\nFile access events] --> G[Count distinct Object_Name\nper user per day]
-    G --> H{Daily access count vs\nuser's 30-day baseline\nZ-score > 3?}
+    G --> H{"Daily access count vs\nuser's 30-day baseline\nZ-score > 3?"}
     H -- No --> I[Normal volume\nNo flag]
     H -- Yes --> J[FLAG: Access spike]
 
     K[Corelight conn.log\nBytes out per session] --> L[Aggregate bytes_out\nper authenticated user]
-    L --> M{bytes_out vs\nuser's 30-day avg\n> 90th percentile?}
+    L --> M{"bytes_out vs\nuser's 30-day avg\n> 90th percentile?"}
     M -- No --> N[Normal volume\nNo flag]
     M -- Yes --> O[FLAG: Volume anomaly]
 

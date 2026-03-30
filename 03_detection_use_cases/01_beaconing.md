@@ -101,12 +101,12 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Corelight conn.log\nSysmon EID 3] --> B[Filter: outbound connections\nports 80/443/8080/8443]
-    B --> C{Connection count\nper src-dest pair > 20?}
+    A["Corelight conn.log\nSysmon EID 3"] --> B["Filter: outbound connections\nports 80/443/8080/8443"]
+    B --> C{"Connection count\nper src-dest pair > 20?"}
     C -- No --> D[Below threshold\nDiscard]
     C -- Yes --> E[Calculate inter-connection\nintervals via autoregress]
     E --> F[Compute stdev and avg\nper src-dest pair]
-    F --> G{jitter_pct\nstdev/avg < 15%?}
+    F --> G{"jitter_pct\nstdev/avg < 15%?"}
     G -- No --> H[Variable timing\nLikely legitimate]
     G -- Yes --> I[LOW JITTER ALERT\nSuspicious regularity]
     I --> J[Pivot: Sysmon EID 3\nWhat process owns connection?]
@@ -374,9 +374,9 @@ index=corelight OR index=sysmon host="<SUSPECT_HOST>" OR id.orig_h="<SUSPECT_IP>
 ```mermaid
 flowchart LR
     subgraph NET["Network Evidence"]
-        A[Corelight conn.log\nInterval regularity\njitter_pct < 15%]
-        B[Corelight http.log\nURI patterns\nUser-agent strings]
-        C[Corelight ssl.log\nJA3/JA3S fingerprint\nSNI vs cert mismatch]
+        A["Corelight conn.log\nInterval regularity\njitter_pct < 15%"]
+        B["Corelight http.log\nURI patterns\nUser-agent strings"]
+        C["Corelight ssl.log\nJA3/JA3S fingerprint\nSNI vs cert mismatch"]
     end
     subgraph HOST["Host Evidence"]
         D[Sysmon EID 3\nProcess → IP mapping]
@@ -432,7 +432,7 @@ index=corelight sourcetype=corelight_conn
 ```mermaid
 xychart-beta
     title "Beacon Score by Jitter Percentage (Lower = More Suspicious)"
-    x-axis "Jitter % (stdev/avg * 100)" [0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100]
+    x-axis [0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100]
     y-axis "Suspicion Score (10=highest)" 0 --> 10
     line [10, 9, 8, 6, 4, 3, 2, 1, 1, 0, 0]
 ```
