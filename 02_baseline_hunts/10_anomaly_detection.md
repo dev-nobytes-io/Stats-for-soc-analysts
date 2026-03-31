@@ -2,7 +2,7 @@
 
 ← [Back to README](../README.md)
 
-**Navigation:** [← 09 Behavioral Profiling](./09_behavioral_profiling.md)
+**Navigation:** [← 09 Behavioral Profiling](./09_behavioral_profiling.md) | [11 Peer Group Analysis →](./11_peer_group_analysis.md)
 
 ---
 
@@ -368,6 +368,6 @@ Since this technique is the aggregation layer, it feeds into every detection use
 
 ---
 
-**Navigation:** [← 09 Behavioral Profiling](./09_behavioral_profiling.md)
+**Navigation:** [← 09 Behavioral Profiling](./09_behavioral_profiling.md) | [11 Peer Group Analysis →](./11_peer_group_analysis.md)
 
 ← [Back to README](../README.md)

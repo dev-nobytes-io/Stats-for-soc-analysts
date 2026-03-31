@@ -85,7 +85,7 @@ Stats-for-soc-analysts/
 ├── 00_peak_framework_overview.md           ← PEAK explained in depth
 ├── 01_splunk_search_head_functions.md      ← Distributed vs Streaming functions
 │
-├── 02_baseline_hunts/                      ← 10 statistical techniques
+├── 02_baseline_hunts/                      ← 15 statistical techniques
 │   ├── 01_frequency_analysis.md
 │   ├── 02_cardinality_analysis.md
 │   ├── 03_zscore_stdev.md
@@ -95,7 +95,12 @@ Stats-for-soc-analysts/
 │   ├── 07_rate_of_change.md
 │   ├── 08_timeseries_forecasting.md
 │   ├── 09_behavioral_profiling.md
-│   └── 10_anomaly_detection.md
+│   ├── 10_anomaly_detection.md
+│   ├── 11_peer_group_analysis.md
+│   ├── 12_cohort_baselining.md
+│   ├── 13_first_seen_tracking.md
+│   ├── 14_long_term_drift.md
+│   └── 15_baseline_management.md
 │
 ├── 03_detection_use_cases/                 ← 9 attack use cases
 │   ├── 01_beaconing.md
@@ -137,6 +142,11 @@ Stats-for-soc-analysts/
 | [Time-Series Forecast](02_baseline_hunts/08_timeseries_forecasting.md) | Knowledge | `predict` (ARIMA/LL/LLP) | Credential Attack, Traffic Anomaly |
 | [Behavioral Profiling](02_baseline_hunts/09_behavioral_profiling.md) | Knowledge | `eventstats`, `streamstats` | Insider Threat, UEBA, Lateral Movement |
 | [Anomaly Detection](02_baseline_hunts/10_anomaly_detection.md) | Knowledge | `anomalydetection`, `cluster` | Multi-use automated baseline |
+| [Peer Group Analysis](02_baseline_hunts/11_peer_group_analysis.md) | Analyze | `eventstats`, `lookup` | Lateral Movement, Insider Threat, UEBA |
+| [Cohort Baselining](02_baseline_hunts/12_cohort_baselining.md) | Analyze | `stats`, `eval case()` | Lateral Movement, Privilege Escalation |
+| [First-Seen Tracking](02_baseline_hunts/13_first_seen_tracking.md) | Explore | `stats min()`, `outputlookup` | Rogue Processes, Lateral Movement, C2 |
+| [Long-Term Drift Detection](02_baseline_hunts/14_long_term_drift.md) | Analyze | `streamstats`, `predict`, `eval` | Slow exfil, slow lateral, APT dwell time |
+| [Baseline Management](02_baseline_hunts/15_baseline_management.md) | Knowledge | `inputlookup`, `outputlookup` | Operational hygiene across all techniques |
 
 ---
 
