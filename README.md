@@ -211,6 +211,83 @@ The following items are planned but not yet written. Contributions welcome.
 
 ### Mermaid Diagram Audit
 
-- [ ] Full rendering test of all mermaid diagrams across all 25 files — confirm no syntax errors remain after the automated fixes applied during initial generation
+- [x] Verified all mermaid blocks are properly closed across all 25 files — no unclosed blocks found
+- [x] Confirmed xychart-beta, quadrantChart, mindmap, flowchart, and sequenceDiagram syntax is valid throughout
+- [x] Quoted all node labels containing special characters (`>`, `(`, `/`) in flowchart diagrams
 
-> All major content items are now complete. The mermaid audit is the only remaining open item.
+---
+
+## Future Enhancements
+
+Planned additions beyond the current scope. Contributions welcome — see the section headings below for suggested file paths.
+
+### Splunk Enterprise Security Integration
+
+`06_es_integration/` *(new directory)*
+
+- [ ] **Converting detections to ES Notable Events** — how to wrap each detection SPL as a correlation search that produces a Notable Event with proper `risk_score`, `urgency`, `security_domain`, and `kill_chain_phase` fields
+- [ ] **Risk-Based Alerting (RBA)** — risk modifier searches that accumulate per-entity risk scores from the composite signals in this repo rather than firing individual alerts; includes `risk_object`, `risk_object_type`, and `threat_object` field mapping
+- [ ] **Adaptive Response Actions** — attaching response actions (block IP via firewall, disable AD account) to Notable Events using Splunk SOAR or custom adaptive response scripts
+- [ ] **Glass Table design** — suggested ES glass table layout for the full threat hunting workflow
+
+### SOAR / Phantom Playbooks
+
+`07_soar_playbooks/` *(new directory)*
+
+- [ ] **Beaconing playbook** — automated: WHOIS lookup on dest IP → VirusTotal enrichment → block at firewall → isolate host if VT score > 5 → create IR ticket
+- [ ] **Credential attack playbook** — automated: lock source IP → check for successful logons from same IP → force password reset if successful login found → page on-call
+- [ ] **Insider threat playbook** — semi-automated: shadow monitor mode (no block) → notify Legal and HR → preserve evidence to case management → escalation decision gate
+- [ ] **Port scan playbook** — automated: classify source as internal vs external → if internal, isolate and hunt laterally; if external, block at perimeter + threat intel lookup
+
+### Azure AD / Entra ID Coverage
+
+`08_entra_id/` *(new directory)*
+
+- [ ] **Azure AD sign-in logs** — equivalent field mappings from `SigninLogs` and `AADNonInteractiveUserSignInLogs` to the WinEvent patterns used in this repo
+- [ ] **Conditional Access anomalies** — detecting impossible travel, unfamiliar location, legacy auth, and MFA fatigue attacks using Entra ID sign-in risk events
+- [ ] **Azure AD-specific attacks** — Device Code phishing, OAuth consent grant abuse, Entra ID DCSync equivalent (PTA agent abuse), and password spray against federated endpoints
+- [ ] **Unified detection** — hybrid environment hunting: correlating on-prem WinEvent with Entra ID logs for accounts that exist in both
+
+### Detection-as-Code
+
+`09_detection_as_code/` *(new directory)*
+
+- [ ] **SPL validation in CI/CD** — how to lint and syntax-check SPL queries in a Git pipeline using the Splunk REST API (`/services/search/parser`) before merging detection changes
+- [ ] **Detection versioning** — storing saved searches, correlation search configs, and lookup table updates in Git with structured YAML metadata (description, MITRE IDs, data sources, author, created/modified dates)
+- [ ] **Automated regression testing** — replaying sample events through detections after code changes to confirm detections still fire correctly; sample dataset generation guidance
+- [ ] **Deployment pipeline** — pushing tested detection changes to Splunk via the REST API or Splunk App packaging, with environment promotion (dev → staging → prod)
+
+### Threat Intelligence Enrichment
+
+`10_threat_intel/` *(new directory)*
+
+- [ ] **Lookup-based enrichment** — adding threat intel feeds (Abuse.ch, OTX, MISP exports) as Splunk KV Store lookups; auto-updating via scheduled searches
+- [ ] **Domain reputation scoring** — combining WHOIS age, passive DNS cardinality, and Alexa/Umbrella rank into a domain risk score usable in detection SPL
+- [ ] **JA3/JA3S fingerprint library** — building a lookup of known-bad and known-good JA3 hashes from Corelight ssl.log for C2 TLS fingerprinting
+- [ ] **IOC correlation search** — a scheduled search that cross-references all active IOCs against a rolling 30-day window of Corelight and Sysmon data
+
+### Cloud Infrastructure Coverage
+
+`11_cloud_infrastructure/` *(new directory)*
+
+- [ ] **AWS CloudTrail** — equivalent field mappings and detections for IAM enumeration, S3 exfiltration, EC2 instance launches, and CloudTrail disabling
+- [ ] **Azure Activity Log** — equivalent detections for Azure RBAC changes, resource group enumeration, and Azure VM deployment anomalies
+- [ ] **GCP Audit Logs** — covering IAM privilege escalation, Cloud Storage exfiltration, and Compute Engine activity
+- [ ] **Multi-cloud correlation** — hunting across cloud and on-prem simultaneously for identity-based attacks that pivot from SaaS into the corporate network
+
+### Lab Exercises and Sample Data
+
+`12_lab_exercises/` *(new directory)*
+
+- [ ] **Synthetic event generator** — Python scripts to generate realistic Corelight, WinEvent, and Sysmon events with embedded attack patterns for each detection use case; events importable into a Splunk trial instance
+- [ ] **Exercise worksheets** — guided exercises for each baseline hunt technique with questions, expected SPL answers, and worked examples using the synthetic data
+- [ ] **Capture-the-flag challenges** — 5 progressively harder scenarios embedded in synthetic datasets where analysts must identify the attack, scope it, and write a detection rule
+
+### Tuning and Operationalisation Guide
+
+`13_tuning_guide/` *(new directory)*
+
+- [ ] **False positive classification framework** — systematic process for categorising each FP (noise source, misconfiguration, legitimate anomaly) and documenting the fix
+- [ ] **Threshold calibration methodology** — how to use 30/60/90-day lookback data to set statistically justified thresholds rather than guesses; seasonality adjustment
+- [ ] **Alert fatigue measurement** — SPL to measure analyst workload per detection (alerts fired, closed as FP, closed as TP, time-to-close); use this to prioritise tuning effort
+- [ ] **Detection coverage heatmap** — mapping your active detections against the MITRE ATT&CK matrix to visualise gaps and over-invested areas
