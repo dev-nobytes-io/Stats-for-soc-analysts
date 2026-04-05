@@ -115,15 +115,39 @@ Stats-for-soc-analysts/
 │
 ├── 04_technique_detection_matrix.md        ← Full cross-reference table
 │
-└── 05_courses/                             ← SOC analyst investigation skills
-    ├── 00_course_overview.md
-    ├── module_01_ad_traffic_fundamentals.md
-    ├── module_02_infrastructure_traffic_analysis.md
-    ├── module_03_authentication_patterns.md
-    ├── module_04_common_ad_attacks.md
-    ├── module_05_attacker_tooling_signatures.md
-    ├── module_06_ad_weakness_identification.md
-    └── module_07_threat_hunting_capstone.md
+├── 05_courses/                             ← SOC analyst investigation skills
+│   ├── 00_course_overview.md
+│   ├── module_01_ad_traffic_fundamentals.md
+│   ├── module_02_infrastructure_traffic_analysis.md
+│   ├── module_03_authentication_patterns.md
+│   ├── module_04_common_ad_attacks.md
+│   ├── module_05_attacker_tooling_signatures.md
+│   ├── module_06_ad_weakness_identification.md
+│   └── module_07_threat_hunting_capstone.md
+│
+├── 06_statistical_tests/                   ← 46 statistical tests with formulas, SPL, and cybersecurity use cases
+│   ├── 00_index.md                         ← Test selection guide and complete list
+│   ├── 01_univariate_tests.md              ← Z-Score, MAD, IQR, Grubbs, Benford's Law
+│   ├── 02_bivariate_tests.md              ← Pearson, Spearman, Kendall's Tau, Chi-Square, Point-Biserial
+│   ├── 03_multivariate_tests.md           ← PCA, K-Means, Hierarchical, Isolation Forest, LOF, DBSCAN
+│   ├── 04_time_series_tests.md            ← AR, MA, ARIMA, ETS, Change Point, Spectral, ACF/PACF
+│   ├── 05_regression_methods.md           ← Simple Linear, Multiple Linear, Logistic Regression
+│   ├── 06_hypothesis_tests.md             ← t-tests, ANOVA, Mann-Whitney, K-S, Shapiro-Wilk, Levene, Bonferroni
+│   └── 07_classification_metrics.md       ← ROC/AUC, Precision-Recall, Confusion Matrix, MCC, Calibration
+│
+├── 07_hunt_taxonomy/                       ← Complete threat hunting taxonomy + 12-month calendar
+│   ├── 00_index.md                         ← Taxonomy overview and data source matrix
+│   ├── 01_hypothesis_driven.md             ← APT29/SolarWinds, Kerberoasting chain, DeTTECT, Tracecat, Neo4j
+│   ├── 02_anomaly_driven.md               ← Statistical baseline deviation, ML-based UEBA
+│   ├── 03_indicator_and_technique_driven.md ← Hash/IP/domain hunts, T1566/T1021/T1055/T1134 ATT&CK SPL
+│   └── 04_custom_chains_and_jeopardy.md   ← Ransomware, supply chain, insider theft, cryptojacking + Hunt Jeopardy
+│
+└── 08_splunk_performance/                  ← tstats, data models, streaming/distributed architecture
+    ├── 00_index.md                         ← When to use tstats vs raw search
+    ├── 01_tstats_and_data_models.md        ← tstats syntax, acceleration setup, performance benchmarks
+    ├── 02_streaming_commands_deep_dive.md  ← streamstats, eventstats, transaction, eval, autoregress, predict
+    ├── 03_statistical_tests_with_tstats.md ← All 06_statistical_tests/ tests rewritten at production scale
+    └── 04_cim_field_mapping.md             ← CIM fields: Sysmon, WEL, Corelight, Palo Alto, Azure AD, Web proxy
 ```
 
 ---
@@ -147,6 +171,9 @@ Stats-for-soc-analysts/
 | [First-Seen Tracking](02_baseline_hunts/13_first_seen_tracking.md) | Explore | `stats min()`, `outputlookup` | Rogue Processes, Lateral Movement, C2 |
 | [Long-Term Drift Detection](02_baseline_hunts/14_long_term_drift.md) | Analyze | `streamstats`, `predict`, `eval` | Slow exfil, slow lateral, APT dwell time |
 | [Baseline Management](02_baseline_hunts/15_baseline_management.md) | Knowledge | `inputlookup`, `outputlookup` | Operational hygiene across all techniques |
+| [Statistical Tests (46)](06_statistical_tests/00_index.md) | Analyze | MLTK: `fit IsolationForest/KMeans/LogisticRegression` | All — with formal statistical validation |
+| [Hunt Taxonomy](07_hunt_taxonomy/00_index.md) | All phases | Full SPL chains per technique | Hypothesis/anomaly/indicator/technique/chain hunts |
+| [tstats + Data Models](08_splunk_performance/00_index.md) | All phases | `\| tstats FROM datamodel=` | All — production-scale implementations |
 
 ---
 
@@ -230,6 +257,12 @@ The following items are planned but not yet written. Contributions welcome.
 ## Future Enhancements
 
 Planned additions beyond the current scope. Contributions welcome — see the section headings below for suggested file paths.
+
+### Completed ✅
+
+- [x] **46 statistical tests** (`06_statistical_tests/`) — univariate through classification metrics; each with formulas, I/O spec, cybersecurity use case, assumptions, limitations, and Splunk SPL
+- [x] **Hunt taxonomy** (`07_hunt_taxonomy/`) — hypothesis, anomaly, indicator, technique, and custom chain hunts (ransomware, supply chain, insider, cryptojacking) + 12-month Hunt Jeopardy calendar
+- [x] **tstats + Data Models** (`08_splunk_performance/`) — tstats architecture, streaming vs. distributed commands, all statistical tests rewritten at production scale, CIM field mapping for Sysmon/WEL/Corelight/Palo Alto/Azure AD/Web proxy
 
 ### Splunk Enterprise Security Integration
 
