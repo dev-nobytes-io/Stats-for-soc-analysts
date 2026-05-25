@@ -135,19 +135,12 @@ Stats-for-soc-analysts/
 │   ├── 06_hypothesis_tests.md             ← t-tests, ANOVA, Mann-Whitney, K-S, Shapiro-Wilk, Levene, Bonferroni
 │   └── 07_classification_metrics.md       ← ROC/AUC, Precision-Recall, Confusion Matrix, MCC, Calibration
 │
-├── 07_hunt_taxonomy/                       ← Complete threat hunting taxonomy + 12-month calendar
-│   ├── 00_index.md                         ← Taxonomy overview and data source matrix
-│   ├── 01_hypothesis_driven.md             ← APT29/SolarWinds, Kerberoasting chain, DeTTECT, Tracecat, Neo4j
-│   ├── 02_anomaly_driven.md               ← Statistical baseline deviation, ML-based UEBA
-│   ├── 03_indicator_and_technique_driven.md ← Hash/IP/domain hunts, T1566/T1021/T1055/T1134 ATT&CK SPL
-│   └── 04_custom_chains_and_jeopardy.md   ← Ransomware, supply chain, insider theft, cryptojacking + Hunt Jeopardy
-│
-└── 08_splunk_performance/                  ← tstats, data models, streaming/distributed architecture
-    ├── 00_index.md                         ← When to use tstats vs raw search
-    ├── 01_tstats_and_data_models.md        ← tstats syntax, acceleration setup, performance benchmarks
-    ├── 02_streaming_commands_deep_dive.md  ← streamstats, eventstats, transaction, eval, autoregress, predict
-    ├── 03_statistical_tests_with_tstats.md ← All 06_statistical_tests/ tests rewritten at production scale
-    └── 04_cim_field_mapping.md             ← CIM fields: Sysmon, WEL, Corelight, Palo Alto, Azure AD, Web proxy
+└── 07_hunt_taxonomy/                       ← Complete threat hunting taxonomy + 12-month calendar
+    ├── 00_index.md                         ← Taxonomy overview and data source matrix
+    ├── 01_hypothesis_driven.md             ← APT29/SolarWinds, Kerberoasting chain, DeTTECT, Tracecat, Neo4j
+    ├── 02_anomaly_driven.md               ← Statistical baseline deviation, ML-based UEBA
+    ├── 03_indicator_and_technique_driven.md ← Hash/IP/domain hunts, T1566/T1021/T1055/T1134 ATT&CK SPL
+    └── 04_custom_chains_and_jeopardy.md   ← Ransomware, supply chain, insider theft, cryptojacking + Hunt Jeopardy
 ```
 
 ---
@@ -173,7 +166,6 @@ Stats-for-soc-analysts/
 | [Baseline Management](02_baseline_hunts/15_baseline_management.md) | Knowledge | `inputlookup`, `outputlookup` | Operational hygiene across all techniques |
 | [Statistical Tests (46)](06_statistical_tests/00_index.md) | Analyze | MLTK: `fit IsolationForest/KMeans/LogisticRegression` | All — with formal statistical validation |
 | [Hunt Taxonomy](07_hunt_taxonomy/00_index.md) | All phases | Full SPL chains per technique | Hypothesis/anomaly/indicator/technique/chain hunts |
-| [tstats + Data Models](08_splunk_performance/00_index.md) | All phases | `\| tstats FROM datamodel=` | All — production-scale implementations |
 
 ---
 
@@ -258,15 +250,14 @@ The following items are planned but not yet written. Contributions welcome.
 
 Planned additions beyond the current scope. Contributions welcome — see the section headings below for suggested file paths.
 
-### Completed ✅
+### Statistical Tests & Hunt Taxonomy
 
-- [x] **46 statistical tests** (`06_statistical_tests/`) — univariate through classification metrics; each with formulas, I/O spec, cybersecurity use case, assumptions, limitations, and Splunk SPL
-- [x] **Hunt taxonomy** (`07_hunt_taxonomy/`) — hypothesis, anomaly, indicator, technique, and custom chain hunts (ransomware, supply chain, insider, cryptojacking) + 12-month Hunt Jeopardy calendar
-- [x] **tstats + Data Models** (`08_splunk_performance/`) — tstats architecture, streaming vs. distributed commands, all statistical tests rewritten at production scale, CIM field mapping for Sysmon/WEL/Corelight/Palo Alto/Azure AD/Web proxy
+- [x] **46 statistical tests** (`06_statistical_tests/`) — univariate, bivariate, multivariate, time series, regression, hypothesis tests, classification metrics; each with formulas, I/O spec, cybersecurity use cases, assumptions, limitations, Splunk SPL
+- [x] **Hunt taxonomy** (`07_hunt_taxonomy/`) — hypothesis-driven (APT29/SolarWinds, Kerberoasting chain), anomaly-driven (statistical + ML UEBA), indicator-driven, technique-driven (T1566/T1021/T1055/T1134), custom chains (ransomware, supply chain, insider, cryptojacking), Hunt Jeopardy 12-month calendar
 
 ### Splunk Enterprise Security Integration
 
-`06_es_integration/` *(new directory)*
+`08_es_integration/` *(new directory)*
 
 - [ ] **Converting detections to ES Notable Events** — how to wrap each detection SPL as a correlation search that produces a Notable Event with proper `risk_score`, `urgency`, `security_domain`, and `kill_chain_phase` fields
 - [ ] **Risk-Based Alerting (RBA)** — risk modifier searches that accumulate per-entity risk scores from the composite signals in this repo rather than firing individual alerts; includes `risk_object`, `risk_object_type`, and `threat_object` field mapping
@@ -275,7 +266,7 @@ Planned additions beyond the current scope. Contributions welcome — see the se
 
 ### SOAR / Phantom Playbooks
 
-`07_soar_playbooks/` *(new directory)*
+`09_soar_playbooks/` *(new directory)*
 
 - [ ] **Beaconing playbook** — automated: WHOIS lookup on dest IP → VirusTotal enrichment → block at firewall → isolate host if VT score > 5 → create IR ticket
 - [ ] **Credential attack playbook** — automated: lock source IP → check for successful logons from same IP → force password reset if successful login found → page on-call
@@ -284,7 +275,7 @@ Planned additions beyond the current scope. Contributions welcome — see the se
 
 ### Azure AD / Entra ID Coverage
 
-`08_entra_id/` *(new directory)*
+`10_entra_id/` *(new directory)*
 
 - [ ] **Azure AD sign-in logs** — equivalent field mappings from `SigninLogs` and `AADNonInteractiveUserSignInLogs` to the WinEvent patterns used in this repo
 - [ ] **Conditional Access anomalies** — detecting impossible travel, unfamiliar location, legacy auth, and MFA fatigue attacks using Entra ID sign-in risk events
@@ -293,7 +284,7 @@ Planned additions beyond the current scope. Contributions welcome — see the se
 
 ### Detection-as-Code
 
-`09_detection_as_code/` *(new directory)*
+`11_detection_as_code/` *(new directory)*
 
 - [ ] **SPL validation in CI/CD** — how to lint and syntax-check SPL queries in a Git pipeline using the Splunk REST API (`/services/search/parser`) before merging detection changes
 - [ ] **Detection versioning** — storing saved searches, correlation search configs, and lookup table updates in Git with structured YAML metadata (description, MITRE IDs, data sources, author, created/modified dates)
